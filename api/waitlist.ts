@@ -1,3 +1,5 @@
+declare const process: any
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     res.statusCode = 405
@@ -31,8 +33,39 @@ export default async function handler(req: any, res: any) {
       body,
     })
 
-    res.statusCode = upstream.ok ? 200 : 502
-    res.json({ ok: upstream.ok })
+    if (!upstream.ok) {
+      res.statusCode = 502
+      res.json({ ok: false, error: `Upstream HTTP ${upstream.status}` })
+      return
+    }
+
+    // Apps Script sometimes returns 200 even if it didn't write (e.g. errors in doPost).
+    // Require an explicit JSON success payload.
+    const text = await upstream.text()
+    let json: any = null
+    try {
+      json = JSON.parse(text)
+    } catch {
+      // ignore
+    }
+
+    const ok =
+      (typeof json?.ok === 'boolean' && json.ok === true) ||
+      (typeof json?.status === 'string' && json.status.toLowerCase() === 'ok')
+
+    if (!ok) {
+      res.statusCode = 502
+      res.json({
+        ok: false,
+        error: 'Upstream did not confirm success',
+        // Keep it short; avoids dumping huge HTML.
+        upstreamBody: text.slice(0, 200),
+      })
+      return
+    }
+
+    res.statusCode = 200
+    res.json({ ok: true })
   } catch (err: any) {
     res.statusCode = 502
     res.json({ ok: false, error: err?.message ?? 'Upstream error' })
