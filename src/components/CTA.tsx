@@ -23,13 +23,35 @@ export default function CTA() {
 
   const [toast1, setToast1] = useState(false)
   const [toast2, setToast2] = useState(false)
+  const [toastMsg1, setToastMsg1] = useState("You're on the list.")
+  const [toastMsg2, setToastMsg2] = useState('Application received.')
+  const [joining, setJoining] = useState(false)
+  const [submittingBrand, setSubmittingBrand] = useState(false)
+
+  const WAITLIST_ENDPOINT = (import.meta.env.VITE_WAITLIST_ENDPOINT as string | undefined) ?? ''
+  const BRAND_APP_ENDPOINT = (import.meta.env.VITE_BRAND_APP_ENDPOINT as string | undefined) ?? ''
 
   const showToast = (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     setter(true)
     setTimeout(() => setter(false), 3500)
   }
 
-  const handleJoin = () => {
+  async function postToEndpoint(endpoint: string, fields: Record<string, string>) {
+    // Apps Script reliably parses x-www-form-urlencoded into e.parameter.
+    const body = new URLSearchParams()
+    for (const [k, v] of Object.entries(fields)) body.set(k, v)
+
+    // Use no-cors so the browser can send the request even without CORS headers.
+    // We can't reliably read success/failure from Apps Script without enabling CORS.
+    await fetch(endpoint, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body,
+    })
+  }
+
+  const handleJoin = async () => {
     const input = emailRef.current
     if (!input) return
     if (!input.value || !input.value.includes('@')) {
@@ -38,11 +60,30 @@ export default function CTA() {
       setTimeout(() => { input.placeholder = orig }, 2500)
       return
     }
-    showToast(setToast1)
-    input.value = ''
+    if (!WAITLIST_ENDPOINT) {
+      setToastMsg1('Missing VITE_WAITLIST_ENDPOINT.')
+      showToast(setToast1)
+      return
+    }
+
+    const email = input.value.trim()
+    if (!email) return
+
+    setJoining(true)
+    try {
+      await postToEndpoint(WAITLIST_ENDPOINT, { email, source: 'lehna-waitlist-customers' })
+      setToastMsg1("You're on the list.")
+      showToast(setToast1)
+      input.value = ''
+    } catch {
+      setToastMsg1('Could not submit. Please try again.')
+      showToast(setToast1)
+    } finally {
+      setJoining(false)
+    }
   }
 
-  const handleBrand = () => {
+  const handleBrand = async () => {
     const n = bNameRef.current
     const e = bEmailRef.current
     if (!n || !e) return
@@ -51,11 +92,38 @@ export default function CTA() {
       setTimeout(() => { n.style.borderColor = '' }, 2000)
       return
     }
-    showToast(setToast2)
-    if (bNameRef.current)   bNameRef.current.value = ''
-    if (bEmailRef.current)  bEmailRef.current.value = ''
-    if (bOriginRef.current) bOriginRef.current.value = ''
-    if (bNoteRef.current)   bNoteRef.current.value = ''
+    if (!BRAND_APP_ENDPOINT) {
+      setToastMsg2('Missing VITE_BRAND_APP_ENDPOINT.')
+      showToast(setToast2)
+      return
+    }
+
+    const name = n.value.trim()
+    const email = e.value.trim()
+    const origin = bOriginRef.current?.value.trim() ?? ''
+    const note = bNoteRef.current?.value.trim() ?? ''
+
+    setSubmittingBrand(true)
+    try {
+      await postToEndpoint(BRAND_APP_ENDPOINT, {
+        brandName: name,
+        email,
+        countryOfManufacture: origin,
+        note,
+        source: 'lehna-brand-application',
+      })
+      setToastMsg2('Application received.')
+      showToast(setToast2)
+      if (bNameRef.current) bNameRef.current.value = ''
+      if (bEmailRef.current) bEmailRef.current.value = ''
+      if (bOriginRef.current) bOriginRef.current.value = ''
+      if (bNoteRef.current) bNoteRef.current.value = ''
+    } catch {
+      setToastMsg2('Could not submit. Please try again.')
+      showToast(setToast2)
+    } finally {
+      setSubmittingBrand(false)
+    }
   }
 
   return (
@@ -114,7 +182,9 @@ export default function CTA() {
                   placeholder="your@email.com"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleJoin() }}
                 />
-                <button onClick={handleJoin}>Join →</button>
+                <button onClick={handleJoin} disabled={joining}>
+                  {joining ? 'Joining…' : 'Join →'}
+                </button>
               </div>
               <div className="f-note">No spam. We write when we have something real to say.</div>
             </div>
@@ -142,8 +212,9 @@ export default function CTA() {
                   className="btn-a"
                   style={{ alignSelf: 'flex-start', marginTop: '.5rem' }}
                   onClick={handleBrand}
+                  disabled={submittingBrand}
                 >
-                  Submit Application →
+                  {submittingBrand ? 'Submitting…' : 'Submit Application →'}
                 </button>
               </div>
             </div>
@@ -151,8 +222,8 @@ export default function CTA() {
         </div>
       </section>
 
-      <Toast show={toast1} message="You're on the list." />
-      <Toast show={toast2} message="Application received." bottom="5.5rem" />
+      <Toast show={toast1} message={toastMsg1} />
+      <Toast show={toast2} message={toastMsg2} bottom="5.5rem" />
     </>
   )
 }
