@@ -28,7 +28,10 @@ export default async function handler(req: any, res: any) {
 
   try {
     const bodyString = body.toString()
-    const upstream = await fetch(endpoint, {
+    // Also include as query params; Apps Script typically populates `e.parameter`
+    // from either query string or POST body.
+    const urlWithParams = `${endpoint}?${bodyString}`
+    const upstream = await fetch(urlWithParams, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
       body: bodyString,
