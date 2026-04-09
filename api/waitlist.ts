@@ -69,7 +69,12 @@ export default async function handler(req: any, res: any) {
     }
 
     res.statusCode = 200
-    res.json({ ok: true, upstreamStatus: upstream.status })
+    res.json({
+      ok: true,
+      upstreamStatus: upstream.status,
+      // Debug receipt so we can confirm Apps Script wrote a row in prod.
+      upstreamJson: json,
+    })
   } catch (err: any) {
     res.statusCode = 502
     res.json({ ok: false, error: err?.message ?? 'Upstream error' })
