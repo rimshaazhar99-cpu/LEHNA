@@ -52,20 +52,25 @@ export default function CTA() {
   }
 
   async function submitWaitlist(email: string) {
-    // In production, use a Vercel serverless function so we can reliably detect success/failure.
-    if (import.meta.env.PROD) {
+    // Always try the same-origin API first (works on Vercel; shows up in Network tab).
+    // In local Vite dev this will typically 404, so we fall back to direct submission.
+    try {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null
-      if (!data?.ok) throw new Error('Upstream failed')
-      return
+      if (res.ok) {
+        const data = (await res.json().catch(() => null)) as { ok?: boolean } | null
+        if (!data?.ok) throw new Error('Upstream failed')
+        return
+      }
+      // If the API route doesn't exist (common in local dev), fall back.
+      if (res.status !== 404) throw new Error(`HTTP ${res.status}`)
+    } catch {
+      // ignore and fall back
     }
 
-    // In local dev, allow direct posting to Apps Script via VITE_WAITLIST_ENDPOINT.
     if (!WAITLIST_ENDPOINT) throw new Error('Missing VITE_WAITLIST_ENDPOINT')
     await postToEndpoint(WAITLIST_ENDPOINT, { email, source: 'lehna-waitlist-customers' })
   }
