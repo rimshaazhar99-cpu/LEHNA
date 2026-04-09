@@ -51,6 +51,25 @@ export default function CTA() {
     })
   }
 
+  async function submitWaitlist(email: string) {
+    // In production, use a Vercel serverless function so we can reliably detect success/failure.
+    if (import.meta.env.PROD) {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json().catch(() => null)) as { ok?: boolean } | null
+      if (!data?.ok) throw new Error('Upstream failed')
+      return
+    }
+
+    // In local dev, allow direct posting to Apps Script via VITE_WAITLIST_ENDPOINT.
+    if (!WAITLIST_ENDPOINT) throw new Error('Missing VITE_WAITLIST_ENDPOINT')
+    await postToEndpoint(WAITLIST_ENDPOINT, { email, source: 'lehna-waitlist-customers' })
+  }
+
   const handleJoin = async () => {
     const input = emailRef.current
     if (!input) return
@@ -60,18 +79,12 @@ export default function CTA() {
       setTimeout(() => { input.placeholder = orig }, 2500)
       return
     }
-    if (!WAITLIST_ENDPOINT) {
-      setToastMsg1('Missing VITE_WAITLIST_ENDPOINT.')
-      showToast(setToast1)
-      return
-    }
-
     const email = input.value.trim()
     if (!email) return
 
     setJoining(true)
     try {
-      await postToEndpoint(WAITLIST_ENDPOINT, { email, source: 'lehna-waitlist-customers' })
+      await submitWaitlist(email)
       setToastMsg1("You're on the list.")
       showToast(setToast1)
       input.value = ''
