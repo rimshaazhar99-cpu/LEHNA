@@ -27,10 +27,11 @@ export default async function handler(req: any, res: any) {
   body.set('source', 'lehna-waitlist-customers')
 
   try {
+    const bodyString = body.toString()
     const upstream = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body,
+      body: bodyString,
     })
 
     if (!upstream.ok) {
@@ -65,7 +66,7 @@ export default async function handler(req: any, res: any) {
     }
 
     res.statusCode = 200
-    res.json({ ok: true })
+    res.json({ ok: true, upstreamStatus: upstream.status })
   } catch (err: any) {
     res.statusCode = 502
     res.json({ ok: false, error: err?.message ?? 'Upstream error' })
